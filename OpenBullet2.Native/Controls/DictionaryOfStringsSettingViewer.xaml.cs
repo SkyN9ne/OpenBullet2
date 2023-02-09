@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace OpenBullet2.Native.Controls
 {
@@ -79,13 +80,27 @@ namespace OpenBullet2.Native.Controls
             tabControl.SelectedIndex = 2;
             buttonTabControl.SelectedIndex = 2;
         }
+
+        private void SwitchToInterpolatedMode(object sender, MouseButtonEventArgs e)
+        {
+            vm.Mode = SettingInputMode.Interpolated;
+            vm.InterpValue = vm.Value;
+            tabControl.SelectedIndex = 2;
+            buttonTabControl.SelectedIndex = 2;
+        }
     }
 
     public class DictionaryOfStringsSettingViewerViewModel : ViewModelBase
     {
         public BlockSetting Setting { get; init; }
 
-        public string Name => Setting.Name.ToReadableName();
+        public string Name => Setting.ReadableName;
+
+        public string Description => Setting.Description;
+
+        public IEnumerable<string> Suggestions => Utils.Suggestions.GetInputVariableSuggestions(Setting);
+
+        public bool CanSwitchToInterpolatedMode => Mode == SettingInputMode.Fixed && Value.Contains('<') && Value.Contains('>');
 
         public SettingInputMode Mode
         {
@@ -94,6 +109,7 @@ namespace OpenBullet2.Native.Controls
             {
                 Setting.InputMode = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSwitchToInterpolatedMode));
             }
         }
 
@@ -130,6 +146,7 @@ namespace OpenBullet2.Native.Controls
                 var s = Setting.FixedSetting as DictionaryOfStringsSetting;
                 s.Value = MakeDictionary(value);
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSwitchToInterpolatedMode));
             }
         }
 

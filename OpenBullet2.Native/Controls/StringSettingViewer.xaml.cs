@@ -3,8 +3,10 @@ using RuriLib.Extensions;
 using RuriLib.Models.Blocks.Settings;
 using RuriLib.Models.Blocks.Settings.Interpolated;
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace OpenBullet2.Native.Controls
 {
@@ -77,13 +79,34 @@ namespace OpenBullet2.Native.Controls
             tabControl.SelectedIndex = 2;
             buttonTabControl.SelectedIndex = 2;
         }
+
+        private void SwitchToInterpolatedMode(object sender, MouseButtonEventArgs e)
+        {
+            vm.Mode = SettingInputMode.Interpolated;
+            vm.InterpValue = vm.Value;
+            tabControl.SelectedIndex = 2;
+            buttonTabControl.SelectedIndex = 2;
+        }
     }
 
     public class StringSettingViewerViewModel : ViewModelBase
     {
         public BlockSetting Setting { get; init; }
 
-        public string Name => Setting.Name.ToReadableName();
+        private StringSetting FixedSetting => Setting.FixedSetting as StringSetting;
+        private InterpolatedStringSetting InterpolatedSetting => Setting.InterpolatedSetting as InterpolatedStringSetting;
+
+        public string Name => Setting.ReadableName;
+
+        public string Description => Setting.Description;
+
+        public IEnumerable<string> Suggestions => Utils.Suggestions.GetInputVariableSuggestions(Setting);
+
+        public bool CanSwitchToInterpolatedMode => Mode == SettingInputMode.Fixed && Value.Contains('<') && Value.Contains('>');
+
+        public bool MultiLine => FixedSetting.MultiLine;
+        public VerticalAlignment VerticalAlignment => MultiLine ? VerticalAlignment.Top : VerticalAlignment.Center;
+        public int Height => MultiLine ? 100 : 30;
 
         public SettingInputMode Mode
         {
@@ -92,6 +115,7 @@ namespace OpenBullet2.Native.Controls
             {
                 Setting.InputMode = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSwitchToInterpolatedMode));
             }
         }
 
@@ -124,6 +148,7 @@ namespace OpenBullet2.Native.Controls
                 var s = Setting.FixedSetting as StringSetting;
                 s.Value = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(CanSwitchToInterpolatedMode));
             }
         }
 

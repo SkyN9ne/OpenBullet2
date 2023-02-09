@@ -57,6 +57,7 @@ namespace RuriLib.Helpers.CSharp
         {
             var usings = new List<string>
             {
+                "RuriLib.Helpers",
                 "RuriLib.Logging",
                 "RuriLib.Extensions",
                 "RuriLib.Models.Bots",
@@ -82,7 +83,7 @@ namespace RuriLib.Helpers.CSharp
                 ? GetUsings()
                 : GetUsings().Concat(settings.CustomUsings
                     .Where(u => !string.IsNullOrWhiteSpace(u))
-                    .Select(u => ParseUsing(u)))
+                    .Select(ParseUsing))
                     .Distinct();
 
         private static string ParseUsing(string u)

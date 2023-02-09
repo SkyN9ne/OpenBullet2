@@ -72,7 +72,7 @@
                     @switch (source)
                     {
                         case GroupProxySource x:
-                            <span class="fg-tocheck ml-1">@Loc["Group"] (@x.GroupId)</span>
+                            <span class="fg-tocheck ml-1">@Loc["Group"] (@GetProxyGroupName(x.GroupId))</span>
                             break;
 
                         case FileProxySource x:
@@ -193,6 +193,11 @@
     {
         case JobStatus.Idle:
             <button class="btn btn-sm btn-outline-success" @onclick="Start"><span class="oi oi-media-play"></span> @Loc["Start"]</button>
+            break;
+
+        case JobStatus.Starting:
+            <span style="line-height: 30px; margin-top: 5px;"><i>@Loc["StartingMessage"] </i></span>
+            <button class="btn btn-sm btn-outline-danger" @onclick="Abort"><span class="oi oi-x"></span> @Loc["Abort"]</button>
             break;
 
         case JobStatus.Waiting:

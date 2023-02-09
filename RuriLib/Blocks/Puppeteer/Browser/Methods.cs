@@ -11,6 +11,7 @@ using System.Linq;
 using System.Threading.Tasks;
 
 using ProxyType = RuriLib.Models.Proxies.ProxyType;
+using RuriLib.Helpers;
 
 namespace RuriLib.Blocks.Puppeteer.Browser
 {
@@ -18,7 +19,7 @@ namespace RuriLib.Blocks.Puppeteer.Browser
     public static class Methods
     {
         [Block("Opens a new puppeteer browser", name = "Open Browser")]
-        public static async Task PuppeteerOpenBrowser(BotData data)
+        public static async Task PuppeteerOpenBrowser(BotData data, string extraCmdLineArgs = "")
         {
             data.Logger.LogHeader();
 
@@ -31,6 +32,19 @@ namespace RuriLib.Blocks.Puppeteer.Browser
             }
 
             var args = data.ConfigSettings.BrowserSettings.CommandLineArgs;
+
+            // Extra command line args (to have dynamic args via variables)
+            if (!string.IsNullOrWhiteSpace(extraCmdLineArgs))
+            {
+                args += ' ' + extraCmdLineArgs;
+            }
+
+            // If it's running in docker, currently it runs under root, so add the --no-sandbox otherwise chrome won't work
+            if (Utils.IsDocker())
+            {
+                args += " --no-sandbox";
+            }
+
             if (data.Proxy != null && data.UseProxy)
             {
                 if (data.Proxy.Type == ProxyType.Http || !data.Proxy.NeedsAuthentication)
@@ -54,6 +68,7 @@ namespace RuriLib.Blocks.Puppeteer.Browser
             {
                 Args = new string[] { args },
                 ExecutablePath = data.Providers.PuppeteerBrowser.ChromeBinaryLocation,
+                IgnoredDefaultArgs = new string[] { "--disable-extensions", "--enable-automation" },
                 Headless = data.ConfigSettings.BrowserSettings.Headless,
                 DefaultViewport = null // This is important
             };
@@ -184,7 +199,7 @@ namespace RuriLib.Blocks.Puppeteer.Browser
 
         private static void SetPageAndFrame(BotData data, PuppeteerSharp.Page page)
         {
-            data.SetObject("puppeteerPage", page);
+            data.SetObject("puppeteerPage", page, false);
             SwitchToMainFramePrivate(data);
         }
 

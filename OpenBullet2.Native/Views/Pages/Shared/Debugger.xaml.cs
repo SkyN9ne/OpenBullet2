@@ -1,4 +1,4 @@
-﻿using OpenBullet2.Native.Extensions;
+using OpenBullet2.Native.Extensions;
 using OpenBullet2.Native.Helpers;
 using OpenBullet2.Native.Services;
 using OpenBullet2.Native.ViewModels;
@@ -23,6 +23,7 @@ namespace OpenBullet2.Native.Views.Pages.Shared
             DataContext = vm;
 
             vm.NewLogEntry += NewLogEntry;
+            vm.LogCleared += ClearLog;
 
             InitializeComponent();
             tabControl.SelectedIndex = 0;
@@ -55,6 +56,8 @@ namespace OpenBullet2.Native.Views.Pages.Shared
             }
         }
 
+        private void TakeStep(object sender, RoutedEventArgs e) => vm.TakeStep();
+
         private void Stop(object sender, RoutedEventArgs e) => vm.Stop();
 
         private void NewLogEntry(object sender, BotLoggerEntry entry)
@@ -69,6 +72,7 @@ namespace OpenBullet2.Native.Views.Pages.Shared
                 {
                     logRTB.SelectionStart = logRTB.TextLength;
                     logRTB.ScrollToCaret();
+                    logRTB.ClearUndoHistory();
                 }
                 catch
                 {
@@ -83,11 +87,30 @@ namespace OpenBullet2.Native.Views.Pages.Shared
                     variablesRTB.AppendText($"{variable.Name} ({variable.Type}) = {variable.AsString()}", color);
                 }
 
+                try
+                {
+                    logRTB.ClearUndoHistory();
+                }
+                catch
+                {
+
+                }
+
                 // Update the HTML view
                 if (entry.CanViewAsHtml)
                 {
                     htmlViewer.HTML = entry.Message;
                 }
+            });
+        }
+
+        private void ClearLog(object sender, EventArgs e)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                logRTB.Clear();
+                variablesRTB.Clear();
+                htmlViewer.HTML = string.Empty;
             });
         }
 

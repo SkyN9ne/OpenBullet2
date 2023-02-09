@@ -111,7 +111,7 @@ namespace OpenBullet2.Native.Views.Dialogs
         {
             var ofd = new OpenFileDialog
             {
-                Filter = "Proxy files | *.txt",
+                Filter = "Proxy files or Shell scripts echoing proxies one by one | *.txt;*.bat;*.ps1;*.sh",
                 FilterIndex = 1
             };
 
@@ -278,10 +278,7 @@ namespace OpenBullet2.Native.Views.Dialogs
                 var record = await recordRepo.GetAll()
                     .FirstOrDefaultAsync(r => r.ConfigId == Options.ConfigId && r.WordlistId == wdpo.WordlistId);
 
-                if (record is not null)
-                {
-                    Skip = record.Checkpoint;
-                }
+                Skip = record?.Checkpoint ?? 0;
             }
         }
 

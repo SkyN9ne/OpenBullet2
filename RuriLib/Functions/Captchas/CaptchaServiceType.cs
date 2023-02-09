@@ -43,6 +43,15 @@
         TrueCaptcha,
 
         /// <summary>The service provided by 9kw.eu</summary>
-        NineKW
+        NineKW,
+
+        /// <summary>A service that implements the anti-captcha API.</summary>
+        CustomAntiCaptcha,
+
+        /// <summary>The service provided by anycaptcha.com</summary>
+        AnyCaptcha,
+
+        /// <summary>The service provided by capsolver.com</summary>
+        CapSolver
     }
 }

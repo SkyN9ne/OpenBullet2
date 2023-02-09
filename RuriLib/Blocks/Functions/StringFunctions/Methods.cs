@@ -139,7 +139,7 @@ namespace RuriLib.Blocks.Functions.String
         public static string UrlEncode(BotData data, [Variable] string input)
         {
             // The maximum allowed Uri size is 2083 characters, we use 2080 as a precaution
-            var encoded = string.Join("", input.SplitInChunks(2080).Select(s => Uri.EscapeDataString(s)));
+            var encoded = string.Join("", input.SplitInChunks(2080).Select(Uri.EscapeDataString));
             data.Logger.LogHeader();
             data.Logger.Log($"URL Encoded string: {encoded}", LogColors.YellowGreen);
             return encoded;
@@ -209,6 +209,15 @@ namespace RuriLib.Blocks.Functions.String
             data.Logger.LogHeader();
             data.Logger.Log($"Split the string into {split.Count}", LogColors.YellowGreen);
             return split;
+        }
+
+        [Block("Gets the character at a specific index")]
+        public static string CharAt(BotData data, [Variable] string input, int index)
+        {
+            var character = input[index].ToString();
+            data.Logger.LogHeader();
+            data.Logger.Log($"The character at index {index} is {character}", LogColors.YellowGreen);
+            return character;
         }
     }
 }

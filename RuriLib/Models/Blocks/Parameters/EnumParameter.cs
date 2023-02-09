@@ -1,4 +1,5 @@
-﻿using RuriLib.Models.Blocks.Settings;
+﻿using RuriLib.Extensions;
+using RuriLib.Models.Blocks.Settings;
 using System;
 
 namespace RuriLib.Models.Blocks.Parameters
@@ -7,6 +8,7 @@ namespace RuriLib.Models.Blocks.Parameters
     {
         public Type EnumType { get; set; }
         public string DefaultValue { get; set; }
+        public string[] Options => Enum.GetNames(EnumType);
 
         public EnumParameter()
         {
@@ -21,7 +23,13 @@ namespace RuriLib.Models.Blocks.Parameters
         }
 
         public override BlockSetting ToBlockSetting()
-            => new BlockSetting { Name = Name, FixedSetting = new EnumSetting { EnumType = EnumType, Value = DefaultValue },
-                InputMode = InputMode };
+            => new()
+            {
+                Name = Name,
+                Description = Description,
+                ReadableName = PrettyName ?? Name.ToReadableName(),
+                FixedSetting = new EnumSetting { EnumType = EnumType, Value = DefaultValue },
+                InputMode = InputMode
+            };
     }
 }

@@ -126,6 +126,9 @@
   <data name="AntiCaptchaApiKey" xml:space="preserve">
     <value>Anti-Captcha API Key</value>
   </data>
+  <data name="AnyCaptchaApiKey" xml:space="preserve">
+    <value>AnyCaptcha API Key</value>
+  </data>
   <data name="AreYouSure" xml:space="preserve">
     <value>Are you sure?</value>
   </data>
@@ -180,6 +183,15 @@
   <data name="Custom2CaptchaPort" xml:space="preserve">
     <value>Custom 2Captcha Port</value>
   </data>
+  <data name="CustomAntiCaptchaApiKey" xml:space="preserve">
+    <value>Custom AntiCaptcha API Key</value>
+  </data>
+  <data name="CustomAntiCaptchaHost" xml:space="preserve">
+    <value>Custom AntiCaptcha Host</value>
+  </data>
+  <data name="CustomAntiCaptchaPort" xml:space="preserve">
+    <value>Custom AntiCaptcha Port</value>
+  </data>
   <data name="DeathByCaptcha Username" xml:space="preserve">
     <value>Death By Captcha Username</value>
   </data>
@@ -215,6 +227,9 @@
   </data>
   <data name="LogJobActivityToFile" xml:space="preserve">
     <value>Log job activity to file</value>
+  </data>
+  <data name="LogAllResults" xml:space="preserve">
+    <value>Log all results to the job log file (WARN: Can result in high disk usage due to the amount of lines from each job!)</value>
   </data>
   <data name="ParallelizerType" xml:space="preserve">
     <value>Parallelizer Type</value>
@@ -284,5 +299,8 @@
   </data>
   <data name="VerboseMode" xml:space="preserve">
     <value>Verbose mode</value>
+  </data>
+  <data name="CapSolverApiKey" xml:space="preserve">
+    <value>CapSolver API Key</value>
   </data>
 </root>

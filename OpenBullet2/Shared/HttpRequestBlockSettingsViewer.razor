@@ -1,4 +1,4 @@
-﻿@using RuriLib.Models.Blocks.Custom
+@using RuriLib.Models.Blocks.Custom
 @using RuriLib.Models.Blocks.Custom.HttpRequest
 @using RuriLib.Models.Blocks.Settings
 @inject Microsoft.Extensions.Localization.IStringLocalizer<HttpRequestBlockSettingsViewer> Loc
@@ -7,6 +7,9 @@
     <h6 class="font-weight-bold fg-custom">@Loc["Label"]:</h6>
     <InputText Value="@Block.Label" ValueExpression="@(() => Block.Label)"
                ValueChanged="@((value) => { Block.Label = value; ChangedLabel.InvokeAsync(EventArgs.Empty); })" />
+    <label>@Loc["SafeMode"]</label>
+    <InputCheckbox @bind-Value="Block.Safe" />
+    <br />
 </EditForm>
 
 <h6 class="font-weight-bold fg-custom mt-3">@Loc["Settings"]:</h6>
@@ -72,9 +75,11 @@
 <BlockInputField BlockSetting="@Block.Settings["maxNumberOfRedirects"]" />
 <BlockInputField BlockSetting="@Block.Settings["absoluteUriInFirstLine"]" />
 <BlockInputField BlockSetting="@Block.Settings["readResponseContent"]" />
+<BlockInputField BlockSetting="@Block.Settings["decodeHtml"]" />
 <BlockInputField BlockSetting="@Block.Settings["codePagesEncoding"]" />
 
 <h6 class="font-weight-bold fg-custom mt-3">@Loc["AdvancedSettings"]:</h6>
+<BlockInputField BlockSetting="@Block.Settings["httpLibrary"]" />
 <BlockInputField BlockSetting="@Block.Settings["securityProtocol"]" />
 <BlockInputField BlockSetting="@Block.Settings["useCustomCipherSuites"]" />
 

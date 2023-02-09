@@ -23,6 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using OpenBullet2.Core.Services;
+using System.IO.Compression;
 
 namespace OpenBullet2.Pages
 {
@@ -44,7 +45,7 @@ namespace OpenBullet2.Pages
         private CGrid<Config> grid;
         private Task gridLoad;
 
-        protected override async Task OnParametersSetAsync()
+        protected override Task OnParametersSetAsync()
         {
             AddEventHandlers();
 
@@ -87,7 +88,7 @@ namespace OpenBullet2.Pages
 
             // Set new items to grid
             gridLoad = client.UpdateGrid();
-            await gridLoad;
+            return gridLoad;
         }
 
         private ItemsDTO<Config> GetGridRows(Action<IGridColumnCollection<Config>> columns,
@@ -323,7 +324,7 @@ namespace OpenBullet2.Pages
                     ms.Seek(0, SeekOrigin.Begin);
 
                     // Upload it to the repo
-                    await ConfigRepo.Upload(ms);
+                    await ConfigRepo.Upload(ms, file.Name);
                 }
 
                 await js.AlertSuccess(Loc["AllDone"], $"{Loc["ConfigsSuccessfullyUploaded"]}: {e.FileCount}");
@@ -367,6 +368,28 @@ namespace OpenBullet2.Pages
             }
         }
 
+        private async Task DownloadAll()
+        {
+            // Only download configs that are not remote
+            var configsToPack = configs.Where(c => !c.IsRemote);
+
+            if (!configsToPack.Any())
+            {
+                return;
+            }
+
+            try
+            {
+                var bytes = await ConfigPacker.Pack(configsToPack);
+                await BlazorDownloadFileService.DownloadFile("configs.zip", bytes, "application/octet-stream");
+            }
+            catch (Exception ex)
+            {
+                await js.AlertError(ex.GetType().Name, ex.Message);
+                return;
+            }
+        }
+
         private void ToggleView()
             => VolatileSettings.ConfigsDetailedView = !VolatileSettings.ConfigsDetailedView;
 
@@ -391,7 +414,10 @@ namespace OpenBullet2.Pages
         }
 
         public void Dispose()
-            => RemoveEventHandlers();
+        {
+            RemoveEventHandlers();
+            GC.SuppressFinalize(this);
+        }
 
         ~Configs()
             => Dispose();

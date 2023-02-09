@@ -237,6 +237,11 @@ return noderesult;
                     break;
             }
 
+            foreach (var output in OutputVariables)
+            {
+                writer.WriteLine($"data.LogVariableAssignment(nameof({output.Name}));");
+            }
+
             return writer.ToString();
         }
 
@@ -262,7 +267,7 @@ return noderesult;
                 VariableType.ByteArray => "TryCast<byte[]>()",
                 VariableType.Float => "AsNumber().ToSingle()",
                 VariableType.Int => "AsNumber().ToInt()",
-                VariableType.ListOfStrings => "AsArray().GetEnumerator().ToEnumerable().ToList()",
+                VariableType.ListOfStrings => "AsArray().GetEnumerator().ToEnumerable().Select(j => j.ToString()).ToList()",
                 VariableType.String => "ToString()",
                 _ => throw new NotImplementedException() // Dictionary not implemented yet
             };

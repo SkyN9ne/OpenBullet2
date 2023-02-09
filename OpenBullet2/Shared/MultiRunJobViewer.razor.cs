@@ -19,6 +19,9 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenBullet2.Core.Services;
+using OpenBullet2.Core.Entities;
+using Microsoft.EntityFrameworkCore;
+using RuriLib.Models.Configs;
 
 namespace OpenBullet2.Shared
 {
@@ -30,8 +33,7 @@ namespace OpenBullet2.Shared
         [Inject] private VolatileSettingsService VolatileSettings { get; set; }
         [Inject] private OpenBulletSettingsService OBSettingsService { get; set; }
         [Inject] private MemoryJobLogger Logger { get; set; }
-        [Inject] private IJobRepository JobRepo { get; set; }
-        [Inject] private JobManagerService JobManager { get; set; }
+        [Inject] private IProxyGroupRepository ProxyGroups { get; set; }
         [Inject] private NavigationManager Nav { get; set; }
 
         private bool changingBots = false;
@@ -39,8 +41,14 @@ namespace OpenBullet2.Shared
         private List<Hit> selectedHits = new();
         private Hit lastSelectedHit;
         private Timer uiRefreshTimer;
+        private List<ProxyGroupEntity> proxyGroups;
+        private CancellationTokenSource startCTS;
 
-        protected override void OnInitialized() => AddEventHandlers();
+        protected override async Task OnInitializedAsync()
+        {
+            AddEventHandlers();
+            proxyGroups = await ProxyGroups.GetAll().ToListAsync();
+        }
 
         protected override void OnAfterRender(bool firstRender)
         {
@@ -65,10 +73,19 @@ namespace OpenBullet2.Shared
                 var newAmount = (int)result.Data;
                 changingBots = true;
 
-                await Job.ChangeBots(newAmount);
-
-                Job.Bots = newAmount;
-                changingBots = false;
+                try
+                {
+                    await Job.ChangeBots(newAmount);
+                    Job.Bots = newAmount;
+                }
+                catch (Exception ex)
+                {
+                    await js.AlertException(ex);
+                }
+                finally
+                {
+                    changingBots = false;
+                }
             }
         }
 
@@ -86,8 +103,7 @@ namespace OpenBullet2.Shared
                 : string.Empty;
 
             var message = string.Format(Loc["LineCheckedMessage"], data, proxy, botData.STATUS);
-            var color = botData.STATUS switch
-            {
+            var color = botData.STATUS switch {
                 "SUCCESS" => "yellowgreen",
                 "FAIL" => "tomato",
                 "BAN" => "plum",
@@ -130,15 +146,20 @@ namespace OpenBullet2.Shared
         {
             try
             {
+                startCTS = new CancellationTokenSource();
                 await AskCustomInputs();
 
                 Logger.LogInfo(Job.Id, Loc["StartedWaiting"]);
-                await Job.Start();
+                await Job.Start(startCTS.Token);
                 Logger.LogInfo(Job.Id, Loc["StartedChecking"]);
             }
             catch (Exception ex)
             {
                 await js.AlertException(ex);
+            }
+            finally
+            {
+                startCTS?.Dispose();
             }
         }
 
@@ -157,6 +178,12 @@ namespace OpenBullet2.Shared
 
         private async Task Abort()
         {
+            if (Job.Status is JobStatus.Starting or JobStatus.Waiting)
+            {
+                startCTS.Cancel();
+                return;
+            }
+
             try
             {
                 Logger.LogInfo(Job.Id, Loc["HardStopMessage"]);
@@ -224,8 +251,7 @@ namespace OpenBullet2.Shared
             }
         }
 
-        private static string GetHitColor(Hit hit) => hit.Type switch
-        {
+        private static string GetHitColor(Hit hit) => hit.Type switch {
             "SUCCESS" => "var(--fg-hit)",
             "NONE" => "var(--fg-tocheck)",
             _ => "var(--fg-custom)"
@@ -351,7 +377,9 @@ namespace OpenBullet2.Shared
 
             if (lastSelectedHit.BotLogger == null)
             {
-                await js.AlertError(Loc["Disabled"], Loc["BotLogDisabledError"]);
+                var errorMessage = lastSelectedHit.Config.Mode == ConfigMode.DLL ? Loc["BotLogCompiledConfigError"] : Loc["BotLogDisabledError"];
+                
+                await js.AlertError(Loc["Disabled"], errorMessage);
                 return;
             }
 
@@ -367,8 +395,7 @@ namespace OpenBullet2.Shared
             StateHasChanged();
         }
 
-        private List<Hit> GetFilteredHits() => hitsFilter switch
-        {
+        private List<Hit> GetFilteredHits() => hitsFilter switch {
             "SUCCESS" => Job.Hits.Where(h => h.Type == "SUCCESS").ToList(),
             "NONE" => Job.Hits.Where(h => h.Type == "NONE").ToList(),
             "CUSTOM" => Job.Hits.Where(h => h.Type != "SUCCESS" && h.Type != "NONE").ToList(),
@@ -377,6 +404,9 @@ namespace OpenBullet2.Shared
 
         private async Task ShowNoHitSelectedWarning()
             => await js.AlertError(Loc["Uh-Oh"], Loc["NoHitSelectedWarning"]);
+
+        private string GetProxyGroupName(int id)
+            => id == -1 ? "All" : proxyGroups.FirstOrDefault(g => g.Id == id)?.Name;
 
         private void AddEventHandlers()
         {
@@ -402,7 +432,6 @@ namespace OpenBullet2.Shared
             }
             catch
             {
-
             }
         }
 

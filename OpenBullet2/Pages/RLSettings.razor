@@ -23,6 +23,13 @@
     <label>@Loc["LogJobActivityToFile"]</label>
     <InputCheckbox class="mb-3" @bind-Value="settings.GeneralSettings.LogJobActivityToFile" />
     <br />
+    
+    @if (settings.GeneralSettings.LogJobActivityToFile)
+    {
+        <label>@Loc["LogAllResults"]</label>
+        <InputCheckbox class="mb-3" @bind-Value="settings.GeneralSettings.LogAllResults" />
+        <br />
+    }
 
     <label>@Loc["EnableBotLogging"]</label>
     <InputCheckbox class="mb-3" @bind-Value="settings.GeneralSettings.EnableBotLogging" />
@@ -174,6 +181,27 @@
         case CaptchaServiceType.NineKW:
             <label>@Loc["9KWApiKey"]</label>
             <InputText class="mb-3" @bind-Value="settings.CaptchaSettings.NineKWApiKey" />
+            break;
+
+        case CaptchaServiceType.CustomAntiCaptcha:
+            <label>@Loc["CustomAntiCaptchaApiKey"]</label>
+            <InputText class="mb-3" @bind-Value="settings.CaptchaSettings.CustomAntiCaptchaApiKey" />
+
+            <label>@Loc["CustomAntiCaptchaHost"]</label>
+            <InputText class="mb-3" @bind-Value="settings.CaptchaSettings.CustomAntiCaptchaDomain" />
+
+            <label>@Loc["CustomAntiCaptchaPort"]</label>
+            <InputNumber class="mb-3" @bind-Value="settings.CaptchaSettings.CustomAntiCaptchaPort" />
+            break;
+
+        case CaptchaServiceType.AnyCaptcha:
+            <label>@Loc["AnyCaptchaApiKey"]</label>
+            <InputText class="mb-3" @bind-Value="settings.CaptchaSettings.AnyCaptchaApiKey" />
+            break;
+
+        case CaptchaServiceType.CapSolver:
+            <label>@Loc["CapSolverApiKey"]</label>
+            <InputText class="mb-3" @bind-Value="settings.CaptchaSettings.CapSolverApiKey" />
             break;
     }
 

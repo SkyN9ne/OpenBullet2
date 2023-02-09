@@ -54,7 +54,11 @@ namespace RuriLib.Http
             {
                 await ReceiveFirstLineAsync(cancellationToken).ConfigureAwait(false);
                 await ReceiveHeadersAsync(cancellationToken).ConfigureAwait(false);
-                await ReceiveContentAsync(readResponseContent, cancellationToken).ConfigureAwait(false);
+
+                if (request.Method != HttpMethod.Head)
+                {
+                    await ReceiveContentAsync(readResponseContent, cancellationToken).ConfigureAwait(false);
+                }
             }
             catch
             {
@@ -147,7 +151,7 @@ namespace RuriLib.Http
 
 
         /// <summary>
-        /// Reads all Header Lines using Span<T> For High Perfromace Parsing.
+        /// Reads all Header Lines using <see cref="Span{T}"/> For High Perfromace Parsing.
         /// </summary>
         /// <param name="buff">Buffered Data From Pipe</param>
         private bool ReadHeadersFastPath(ref ReadOnlySequence<byte> buff)

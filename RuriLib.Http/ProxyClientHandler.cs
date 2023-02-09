@@ -16,10 +16,9 @@ using System.Collections.Generic;
 namespace RuriLib.Http
 {
     /// <summary>
-    /// Represents <see cref="HttpMessageHandler"/> with <see cref="IProxyClient{T}"/>
-    /// to provide the <see cref="HttpClient"/> support for <see cref="IProxy"/> proxy type
+    /// Represents <see cref="HttpMessageHandler"/> with a <see cref="ProxyClient"/>
+    /// to provide proxy support to the <see cref="HttpClient"/>.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
     public class ProxyClientHandler : HttpMessageHandler, IDisposable
     {
         private readonly ProxyClient proxyClient;
@@ -134,6 +133,7 @@ namespace RuriLib.Http
         /// <summary>
         /// Asynchronously sends a <paramref name="request"/> and returns an <see cref="HttpResponseMessage"/>.
         /// </summary>
+        /// <param name="request">The request to send</param>
         /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
             CancellationToken cancellationToken = default)
@@ -248,11 +248,11 @@ namespace RuriLib.Http
             RawRequests.Add(ms.ToArray());
         }
 
-        private async Task<HttpResponseMessage> ReceiveDataAsync(HttpRequestMessage request,
+        private Task<HttpResponseMessage> ReceiveDataAsync(HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             var responseBuilder = new HttpResponseMessageBuilder(1024, CookieContainer, request.RequestUri);
-            return await responseBuilder.GetResponseAsync(request, connectionCommonStream, ReadResponseContent, cancellationToken);
+            return responseBuilder.GetResponseAsync(request, connectionCommonStream, ReadResponseContent, cancellationToken);
         }
 
         private async Task CreateConnection(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -311,6 +311,7 @@ namespace RuriLib.Http
             }
         }
 
+        /// <inheritdoc/>
         protected override void Dispose(bool disposing)
         {
             if (disposing)

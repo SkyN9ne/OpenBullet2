@@ -3,6 +3,7 @@ using RuriLib.Extensions;
 using RuriLib.Functions.Conversion;
 using RuriLib.Models.Blocks.Settings;
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -77,7 +78,11 @@ namespace OpenBullet2.Native.Controls
     {
         public BlockSetting Setting { get; init; }
 
-        public string Name => Setting.Name.ToReadableName();
+        public string Name => Setting.ReadableName;
+
+        public string Description => Setting.Description;
+
+        public IEnumerable<string> Suggestions => Utils.Suggestions.GetInputVariableSuggestions(Setting);
 
         public SettingInputMode Mode
         {

@@ -46,6 +46,16 @@ namespace OpenBullet2.Native.ViewModels
                 OnPropertyChanged();
             }
         }
+        
+        public bool LogAllResults
+        {
+            get => General.LogAllResults;
+            set
+            {
+                General.LogAllResults = value;
+                OnPropertyChanged();
+            }
+        }
 
         public bool EnableBotLogging
         {
@@ -386,6 +396,56 @@ namespace OpenBullet2.Native.ViewModels
             set
             {
                 Captcha.NineKWApiKey = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CustomAntiCaptchaApiKey
+        {
+            get => Captcha.CustomAntiCaptchaApiKey;
+            set
+            {
+                Captcha.CustomAntiCaptchaApiKey = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CustomAntiCaptchaDomain
+        {
+            get => Captcha.CustomAntiCaptchaDomain;
+            set
+            {
+                Captcha.CustomAntiCaptchaDomain = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int CustomAntiCaptchaPort
+        {
+            get => Captcha.CustomAntiCaptchaPort;
+            set
+            {
+                Captcha.CustomAntiCaptchaPort = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string AnyCaptchaApiKey
+        {
+            get => Captcha.AnyCaptchaApiKey;
+            set
+            {
+                Captcha.AnyCaptchaApiKey = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string CapSolverApiKey
+        {
+            get => Captcha.CapSolverApiKey;
+            set
+            {
+                Captcha.CapSolverApiKey = value;
                 OnPropertyChanged();
             }
         }

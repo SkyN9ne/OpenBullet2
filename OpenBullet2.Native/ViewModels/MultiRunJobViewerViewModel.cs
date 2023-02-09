@@ -35,6 +35,7 @@ namespace OpenBullet2.Native.ViewModels
         private readonly Timer botsInfoTimer;
         private readonly Timer secondsTicker;
         private readonly SoundPlayer soundPlayer;
+        private CancellationTokenSource startCTS;
 
         public event Action<object, string, Color> NewMessage;
 
@@ -96,6 +97,9 @@ namespace OpenBullet2.Native.ViewModels
             }
         }
 
+        public string CustomInputsInfo => string.Join(", ", MultiRunJob.CustomInputsAnswers.Select(kvp => $"{kvp.Key}: {kvp.Value}"));
+        public bool HasCustomInputs => MultiRunJob.Config != null && MultiRunJob.Config.Settings.InputSettings.CustomInputs.Any();
+
         public bool EnableJobLog => obSettingsService.Settings.GeneralSettings.EnableJobLogging;
         #endregion
 
@@ -106,6 +110,8 @@ namespace OpenBullet2.Native.ViewModels
             AbsoluteTimeStartCondition a => (a.StartAt - DateTime.Now).ToString(@"hh\:mm\:ss"),
             _ => throw new NotImplementedException()
         };
+
+        public bool IsWaiting => MultiRunJob.Status is JobStatus.Waiting;
         #endregion
 
         #region Properties that need to be updated when the status changes
@@ -115,10 +121,10 @@ namespace OpenBullet2.Native.ViewModels
         public bool CanPause => MultiRunJob.Status is JobStatus.Running;
         public bool CanResume => MultiRunJob.Status is JobStatus.Paused;
         public bool CanStop => MultiRunJob.Status is JobStatus.Running or JobStatus.Paused;
-        public bool CanAbort => MultiRunJob.Status is JobStatus.Running or JobStatus.Paused or JobStatus.Pausing or JobStatus.Stopping;
+        public bool CanAbort => MultiRunJob.Status is JobStatus.Starting or JobStatus.Running or JobStatus.Paused or JobStatus.Pausing or JobStatus.Stopping;
 
+        public bool IsStarting => MultiRunJob.Status is JobStatus.Starting;
         public bool IsStopping => MultiRunJob.Status is JobStatus.Stopping;
-        public bool IsWaiting => MultiRunJob.Status is JobStatus.Waiting;
         public bool IsPausing => MultiRunJob.Status is JobStatus.Pausing;
         #endregion
 
@@ -261,6 +267,8 @@ namespace OpenBullet2.Native.ViewModels
         // Periodic update for stuff that needs to be updated every second
         private void PeriodicUpdate()
         {
+            OnPropertyChanged(nameof(IsWaiting));
+
             if (MultiRunJob.Status == JobStatus.Waiting)
             {
                 OnPropertyChanged(nameof(RemainingWaitString));
@@ -298,8 +306,8 @@ namespace OpenBullet2.Native.ViewModels
             OnPropertyChanged(nameof(CanStop));
             OnPropertyChanged(nameof(CanAbort));
 
+            OnPropertyChanged(nameof(IsStarting));
             OnPropertyChanged(nameof(IsStopping));
-            OnPropertyChanged(nameof(IsWaiting));
             OnPropertyChanged(nameof(IsPausing));
         }
 
@@ -396,14 +404,34 @@ namespace OpenBullet2.Native.ViewModels
         #region Controls
         public async Task Start()
         {
-            HitsCollection = new();
-            AskCustomInputs();
-            await MultiRunJob.Start();
-            UpdateBots();
+            try
+            {
+                startCTS = new CancellationTokenSource();
+                HitsCollection = new();
+                AskCustomInputs();
+                OnPropertyChanged(nameof(CustomInputsInfo));
+                await MultiRunJob.Start(startCTS.Token);
+                UpdateBots();
+            }
+            finally
+            {
+                startCTS?.Dispose();
+            }
         }
 
         public Task Stop() => MultiRunJob.Stop();
-        public Task Abort() => MultiRunJob.Abort();
+
+        public async Task Abort()
+        {
+            if (MultiRunJob.Status is JobStatus.Starting or JobStatus.Waiting)
+            {
+                startCTS.Cancel();
+                return;
+            }
+
+            await MultiRunJob.Abort();
+        }
+
         public Task Pause() => MultiRunJob.Pause();
         public Task Resume() => MultiRunJob.Resume();
         public void SkipWait() => MultiRunJob.SkipWait();

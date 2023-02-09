@@ -26,6 +26,9 @@ namespace RuriLib.Blocks.Requests.Tcp
                 TimeSpan.FromMilliseconds(timeoutMilliseconds), data.UseProxy ? data.Proxy : null, data.CancellationToken)
                 .ConfigureAwait(false);
 
+            tcpClient.ReceiveTimeout = timeoutMilliseconds;
+            tcpClient.SendTimeout = timeoutMilliseconds;
+
             var netStream = tcpClient.GetStream();
 
             data.SetObject("netStream", netStream);
@@ -46,11 +49,12 @@ namespace RuriLib.Blocks.Requests.Tcp
 
         [Block("Sends a message (ASCII) on the previously opened socket and read the response (ASCII) right after")]
         public static async Task<string> TcpSendRead(BotData data, string message, bool unescape = true, bool terminateWithCRLF = true,
-            int bytesToRead = 4096, int timeoutMilliseconds = 60000)
+            int bytesToRead = 4096, int timeoutMilliseconds = 60000, [BlockParam("Use UTF8", "Enable to use UTF-8 encoding")] bool useUTF8 = false)
         {
             data.Logger.LogHeader();
 
             var netStream = GetStream(data);
+            var encoding = useUTF8 ? Encoding.UTF8 : Encoding.ASCII;
 
             // Unescape codes like \r\n
             if (unescape)
@@ -64,25 +68,53 @@ namespace RuriLib.Blocks.Requests.Tcp
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, data.CancellationToken);
 
             // Send the message
-            var txBytes = Encoding.ASCII.GetBytes(message);
+            var txBytes = encoding.GetBytes(message);
             await netStream.WriteAsync(txBytes.AsMemory(0, txBytes.Length), linkedCts.Token).ConfigureAwait(false);
 
             // Read the response
             var buffer = new byte[bytesToRead];
             var rxBytes = await netStream.ReadAsync(buffer.AsMemory(0, buffer.Length), linkedCts.Token).ConfigureAwait(false);
-            var response = Encoding.ASCII.GetString(buffer, 0, rxBytes);
+            var response = encoding.GetString(buffer, 0, rxBytes);
 
             data.Logger.Log($"Sent message\r\n{message}", LogColors.Mauve);
             data.Logger.Log($"The server says\r\n{response}", LogColors.Mauve);
             return response;
         }
 
-        [Block("Sends a message(ASCII) on the previously opened socket")]
-        public static async Task TcpSend(BotData data, string message, bool unescape = true, bool terminateWithCRLF = true)
+        [Block("Sends a message on the previously opened socket and read the response right after")]
+        public static async Task<byte[]> TcpSendReadBytes(BotData data, byte[] bytes,
+            int bytesToRead = 4096, int timeoutMilliseconds = 60000)
         {
             data.Logger.LogHeader();
 
             var netStream = GetStream(data);
+
+            using var cts = new CancellationTokenSource(timeoutMilliseconds);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, data.CancellationToken);
+
+            // Send the message
+            await netStream.WriteAsync(bytes.AsMemory(0, bytes.Length), linkedCts.Token).ConfigureAwait(false);
+
+            // Read the response
+            var buffer = new byte[bytesToRead];
+            var rxBytes = await netStream.ReadAsync(buffer.AsMemory(0, buffer.Length), linkedCts.Token).ConfigureAwait(false);
+
+            // Copy only the bytes that were actually received
+            var bytesRead = new ArraySegment<byte>(buffer, 0, rxBytes).ToArray();
+
+            data.Logger.Log($"Sent {bytes.Length} bytes", LogColors.Mauve);
+            data.Logger.Log($"Read {bytesRead.Length} bytes", LogColors.Mauve);
+            return bytesRead;
+        }
+
+        [Block("Sends a message(ASCII) on the previously opened socket")]
+        public static async Task TcpSend(BotData data, string message, bool unescape = true, bool terminateWithCRLF = true,
+            [BlockParam("Use UTF8", "Enable to use UTF-8 encoding")] bool useUTF8 = false)
+        {
+            data.Logger.LogHeader();
+
+            var netStream = GetStream(data);
+            var encoding = useUTF8 ? Encoding.UTF8 : Encoding.ASCII;
 
             // Unescape codes like \r\n
             if (unescape)
@@ -92,14 +124,45 @@ namespace RuriLib.Blocks.Requests.Tcp
             if (terminateWithCRLF && !message.EndsWith("\r\n"))
                 message += "\r\n";
 
-            var bytes = Encoding.ASCII.GetBytes(message);
+            var bytes = encoding.GetBytes(message);
             await netStream.WriteAsync(bytes.AsMemory(0, bytes.Length), data.CancellationToken).ConfigureAwait(false);
 
             data.Logger.Log($"Sent message\r\n{message}", LogColors.Mauve);
         }
 
+        [Block("Sends a message on the previously opened socket")]
+        public static async Task TcpSendBytes(BotData data, byte[] bytes)
+        {
+            data.Logger.LogHeader();
+
+            var netStream = GetStream(data);
+            await netStream.WriteAsync(bytes.AsMemory(0, bytes.Length), data.CancellationToken).ConfigureAwait(false);
+
+            data.Logger.Log($"Sent {bytes.Length} bytes", LogColors.Mauve);
+        }
+
         [Block("Reads a message (ASCII) from the previously opened socket")]
         public static async Task<string> TcpRead(BotData data, int bytesToRead = 4096, 
+            int timeoutMilliseconds = 60000, [BlockParam("Use UTF8", "Enable to use UTF-8 encoding")] bool useUTF8 = false)
+        {
+            data.Logger.LogHeader();
+
+            using var cts = new CancellationTokenSource(timeoutMilliseconds);
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, data.CancellationToken);
+            var netStream = GetStream(data);
+            var encoding = useUTF8 ? Encoding.UTF8 : Encoding.ASCII;
+
+            // Read the response
+            var buffer = new byte[bytesToRead];
+            var rxBytes = await netStream.ReadAsync(buffer.AsMemory(0, buffer.Length), linkedCts.Token).ConfigureAwait(false);
+            var response = encoding.GetString(buffer, 0, rxBytes);
+
+            data.Logger.Log($"The server says\r\n{response}", LogColors.Mauve);
+            return response;
+        }
+
+        [Block("Reads a raw message from the previously opened socket")]
+        public static async Task<byte[]> TcpReadBytes(BotData data, int bytesToRead = 4096,
             int timeoutMilliseconds = 60000)
         {
             data.Logger.LogHeader();
@@ -111,10 +174,12 @@ namespace RuriLib.Blocks.Requests.Tcp
             // Read the response
             var buffer = new byte[bytesToRead];
             var rxBytes = await netStream.ReadAsync(buffer.AsMemory(0, buffer.Length), linkedCts.Token).ConfigureAwait(false);
-            var response = Encoding.ASCII.GetString(buffer, 0, rxBytes);
 
-            data.Logger.Log($"The server says\r\n{response}", LogColors.Mauve);
-            return response;
+            // Copy only the bytes that were actually received
+            var bytesRead = new ArraySegment<byte>(buffer, 0, rxBytes).ToArray();
+
+            data.Logger.Log($"Read {bytesRead.Length} bytes", LogColors.Mauve);
+            return bytesRead;
         }
 
 
@@ -138,7 +203,7 @@ namespace RuriLib.Blocks.Requests.Tcp
                 message += "\r\n";
 
             // Send the message
-            var txBytes = Encoding.ASCII.GetBytes(message);
+            var txBytes = Encoding.UTF8.GetBytes(message);
             await netStream.WriteAsync(txBytes.AsMemory(0, txBytes.Length), linkedCts.Token).ConfigureAwait(false);
 
             // Receive data
@@ -149,16 +214,16 @@ namespace RuriLib.Blocks.Requests.Tcp
             var rxBytes = ms.ToArray();
 
             // Find where the headers are finished
-            var index = BinaryMatch(rxBytes, Encoding.ASCII.GetBytes("\r\n\r\n")) + 4;
+            var index = BinaryMatch(rxBytes, Encoding.UTF8.GetBytes("\r\n\r\n")) + 4;
             var headers = Encoding.UTF8.GetString(rxBytes, 0, index);
             ms.Position = index;
 
             // If gzip, decompress
             if (headers.IndexOf("Content-Encoding: gzip", StringComparison.OrdinalIgnoreCase) > 0)
             {
-                using var decompressionStream = new GZipStream(ms, CompressionMode.Decompress);
+                await using var decompressionStream = new GZipStream(ms, CompressionMode.Decompress);
                 using var decompressedMemory = new MemoryStream();
-                decompressionStream.CopyTo(decompressedMemory);
+                await decompressionStream.CopyToAsync(decompressedMemory, linkedCts.Token).ConfigureAwait(false);
                 decompressedMemory.Position = 0;
                 payload = Encoding.UTF8.GetString(decompressedMemory.ToArray());
             }

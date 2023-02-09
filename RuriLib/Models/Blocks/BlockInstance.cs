@@ -67,9 +67,8 @@ namespace RuriLib.Models.Blocks
 
             using var reader = new StringReader(script);
             using var writer = new StringWriter();
-            string line;
 
-            while ((line = reader.ReadLine()) != null)
+            while (reader.ReadLine() is { } line)
             {
                 var trimmedLine = line.Trim();
 
@@ -97,5 +96,8 @@ namespace RuriLib.Models.Blocks
         }
 
         public virtual string ToCSharp(List<string> definedVariables, ConfigSettings settings) => throw new NotImplementedException();
+
+        public T GetFixedSetting<T>(string name) where T : Setting
+            => Settings[name].FixedSetting as T;
     }
 }

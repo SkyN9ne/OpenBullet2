@@ -1,4 +1,5 @@
 ﻿using RuriLib.Attributes;
+using RuriLib.Extensions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -33,6 +34,21 @@ namespace RuriLib.Logging
                     return entries.ToList();
                 }
             }
+        }
+
+        /// <inheritdoc/>
+        public void LogObject(object obj, string color = "#fff", bool canViewAsHtml = false)
+        {
+            var message = obj switch
+            {
+                List<string> list => list.AsString(),
+                Dictionary<string, string> dict => dict.AsString(),
+                byte[] bytes => bytes.AsString(),
+                float f => f.AsString(),
+                _ => obj.ToString()
+            };
+
+            Log(message, color, canViewAsHtml);
         }
 
         /// <inheritdoc/>
@@ -87,7 +103,7 @@ namespace RuriLib.Logging
             var callingMethod = new StackFrame(1).GetMethod();
             var attribute = callingMethod.GetCustomAttribute<Block>();
 
-            if (attribute != null && attribute.name != null)
+            if (attribute is { name: { } })
                 caller = attribute.name;
 
             var entry = new BotLoggerEntry

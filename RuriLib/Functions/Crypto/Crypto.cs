@@ -8,8 +8,8 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Numerics;
 using System.Text;
-using RuriLib.Functions.Conversion;
 using System.Globalization;
+using BCrypt.Net;
 
 namespace RuriLib.Functions.Crypto
 {
@@ -143,7 +143,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The MD5 digest.</returns>
         public static byte[] MD5(byte[] input)
         {
-            using MD5 md5 = System.Security.Cryptography.MD5.Create();
+            using var md5 = System.Security.Cryptography.MD5.Create();
             return md5.ComputeHash(input);
         }
 
@@ -155,7 +155,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The HMAC signature.</returns>
         public static byte[] HMACMD5(byte[] input, byte[] key)
         {
-            using HMACMD5 hmac = new HMACMD5(key);
+            using var hmac = new HMACMD5(key);
             return hmac.ComputeHash(input);
         }
 
@@ -166,7 +166,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The SHA-1 digest.</returns>
         public static byte[] SHA1(byte[] input)
         {
-            using SHA1Managed sha1 = new SHA1Managed();
+            using var sha1 = System.Security.Cryptography.SHA1.Create();
             return sha1.ComputeHash(input);
         }
 
@@ -178,7 +178,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The HMAC signature.</returns>
         public static byte[] HMACSHA1(byte[] input, byte[] key)
         {
-            using HMACSHA1 hmac = new HMACSHA1(key);
+            using var hmac = new HMACSHA1(key);
             return hmac.ComputeHash(input);
         }
 
@@ -189,9 +189,17 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The SHA-256 digest.</returns>
         public static byte[] SHA256(byte[] input)
         {
-            using SHA256Managed sha256 = new SHA256Managed();
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
             return sha256.ComputeHash(input);
         }
+        
+        /// <summary>
+        /// Overload for method below that calculates a SHA-256 hash signature.
+        /// </summary>
+        /// <param name="input">The message for which a signature will be generated</param>
+        /// <param name="key">The secret key to use to sign the message</param>
+        /// <returns>The HMAC signature.</returns>
+        private static byte[] Hmac(string input, byte[] key) => HMACSHA256(Encoding.UTF8.GetBytes(input), key);
 
         /// <summary>
         /// Calculates a SHA-256 hash signature.
@@ -201,7 +209,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The HMAC signature.</returns>
         public static byte[] HMACSHA256(byte[] input, byte[] key)
         {
-            using HMACSHA256 hmac = new HMACSHA256(key);
+            using var hmac = new HMACSHA256(key);
             return hmac.ComputeHash(input);
         }
 
@@ -212,7 +220,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The SHA-384 digest.</returns>
         public static byte[] SHA384(byte[] input)
         {
-            using SHA384Managed sha384 = new SHA384Managed();
+            using var sha384 = System.Security.Cryptography.SHA384.Create();
             return sha384.ComputeHash(input);
         }
 
@@ -224,7 +232,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The HMAC signature.</returns>
         public static byte[] HMACSHA384(byte[] input, byte[] key)
         {
-            using HMACSHA384 hmac = new HMACSHA384(key);
+            using var hmac = new HMACSHA384(key);
             return hmac.ComputeHash(input);
         }
 
@@ -235,7 +243,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The SHA-512 digest.</returns>
         public static byte[] SHA512(byte[] input)
         {
-            using SHA512Managed sha512 = new SHA512Managed();
+            using var sha512 = System.Security.Cryptography.SHA512.Create();
             return sha512.ComputeHash(input);
         }
 
@@ -247,7 +255,7 @@ namespace RuriLib.Functions.Crypto
         /// <returns>The HMAC signature.</returns>
         public static byte[] HMACSHA512(byte[] input, byte[] key)
         {
-            using HMACSHA512 hmac = new HMACSHA512(key);
+            using var hmac = new HMACSHA512(key);
             return hmac.ComputeHash(input);
         }
 
@@ -409,7 +417,7 @@ namespace RuriLib.Functions.Crypto
         /// <summary>
         /// Encrypts data with AES.
         /// </summary>
-        /// <param name="plainText">The AES-encrypted data</param>
+        /// <param name="plainText">The plaintext data</param>
         /// <param name="key">The encryption key</param>
         /// <param name="iv">The initial value</param>
         /// <param name="mode">The cipher mode</param>
@@ -424,18 +432,83 @@ namespace RuriLib.Functions.Crypto
                 Array.Copy(key, iv, 16);
             }
 
-            var aesAlg = new AesManaged
+            // Check arguments.
+            if (plainText == null || plainText.Length <= 0)
             {
-                KeySize = keySize,
-                Key = key,
-                IV = iv,
-                BlockSize = 128,
-                Mode = mode,
-                Padding = padding
-            };
+                throw new ArgumentNullException("plainText");
+            }
 
-            var encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
-            return encryptor.TransformFinalBlock(plainText, 0, plainText.Length);
+            if (key == null || key.Length <= 0)
+            {
+                throw new ArgumentNullException("Key");
+            }
+
+            using var aes = Aes.Create();
+            aes.KeySize = keySize;
+            aes.BlockSize = 128;
+            aes.FeedbackSize = 128;
+            aes.Key = key;
+            aes.IV = iv;
+            aes.Mode = mode;
+            aes.Padding = padding;
+
+            using var decryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+            return PerformCryptography(plainText, decryptor);
+        }
+
+        /// <summary>
+        /// Encrypts a string with AES.
+        /// </summary>
+        /// <param name="plainText">The plaintext data</param>
+        /// <param name="key">The encryption key</param>
+        /// <param name="iv">The initial value</param>
+        /// <param name="mode">The cipher mode</param>
+        /// <param name="padding">The padding mode</param>
+        public static byte[] AESEncryptString(string plainText, byte[] key, byte[] iv = null,
+            CipherMode mode = CipherMode.CBC, PaddingMode padding = PaddingMode.None, int keySize = 256)
+        {
+            // If no IV was provided, use the first 16 bytes of the key
+            if (iv == null)
+            {
+                iv = new byte[16];
+                Array.Copy(key, iv, 16);
+            }
+
+            // Check arguments.
+            if (plainText == null || plainText.Length <= 0)
+            {
+                throw new ArgumentNullException("plainText");
+            }
+
+            if (key == null || key.Length <= 0)
+            {
+                throw new ArgumentNullException("Key");
+            }
+
+            // Create an Aes object
+            // with the specified key and IV.
+            using var aes = Aes.Create();
+            aes.KeySize = keySize;
+            aes.BlockSize = 128;
+            aes.FeedbackSize = 128;
+            aes.Key = key;
+            aes.IV = iv;
+            aes.Mode = mode;
+            aes.Padding = padding;
+
+            // Create an encryptor to perform the stream transform.
+            var encryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+
+            // Create the streams used for encryption.
+            using var msEncrypt = new MemoryStream();
+            using var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write);
+            using (var swEncrypt = new StreamWriter(csEncrypt))
+            {
+                //Write all data to the stream.
+                swEncrypt.Write(plainText);
+            }
+
+            return msEncrypt.ToArray();
         }
 
         /// <summary>
@@ -456,18 +529,97 @@ namespace RuriLib.Functions.Crypto
                 Array.Copy(key, iv, 16);
             }
 
-            var aesAlg = new AesManaged
+            // Check arguments.
+            if (cipherText == null || cipherText.Length <= 0)
             {
-                KeySize = keySize,
-                Key = key,
-                IV = iv,
-                BlockSize = 128,
-                Mode = mode,
-                Padding = padding
-            };
+                throw new ArgumentNullException("cipherText");
+            }
+                
+            if (key == null || key.Length <= 0)
+            {
+                throw new ArgumentNullException("Key");
+            }
 
-            var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
-            return decryptor.TransformFinalBlock(cipherText, 0, cipherText.Length);
+            using var aes = Aes.Create();
+            aes.BlockSize = 128;
+            aes.FeedbackSize = 128;
+            aes.KeySize = keySize;
+            aes.Key = key;
+            aes.IV = iv;
+            aes.Mode = mode;
+            aes.Padding = padding;
+
+            using var decryptor = aes.CreateEncryptor(aes.Key, aes.IV);
+            return PerformCryptography(cipherText, decryptor);
+        }
+
+        /// <summary>
+        /// Decrypts AES-encrypted data.
+        /// </summary>
+        /// <param name="cipherText">The AES-encrypted data</param>
+        /// <param name="key">The decryption key</param>
+        /// <param name="iv">The initial value</param>
+        /// <param name="mode">The cipher mode</param>
+        /// <param name="padding">The padding mode</param>
+        public static string AESDecryptString(byte[] cipherText, byte[] key, byte[] iv = null,
+            CipherMode mode = CipherMode.CBC, PaddingMode padding = PaddingMode.None, int keySize = 256)
+        {
+            // If no IV was provided, use the first 16 bytes of the key
+            if (iv == null)
+            {
+                iv = new byte[16];
+                Array.Copy(key, iv, 16);
+            }
+
+            // Check arguments.
+            if (cipherText == null || cipherText.Length <= 0)
+            {
+                throw new ArgumentNullException("cipherText");
+            }
+
+            if (key == null || key.Length <= 0)
+            {
+                throw new ArgumentNullException("Key");
+            }
+
+            // Declare the string used to hold
+            // the decrypted text.
+            string plaintext = null;
+
+            using var aes = Aes.Create();
+            aes.KeySize = keySize;
+            aes.BlockSize = 128;
+            aes.FeedbackSize = 128;
+            aes.Key = key;
+            aes.IV = iv;
+            aes.Mode = mode;
+            aes.Padding = padding;
+
+            // Create a decryptor to perform the stream transform.
+            var decryptor = aes.CreateDecryptor(aes.Key, aes.IV);
+
+            // Create the streams used for decryption.
+            using (var msDecrypt = new MemoryStream(cipherText))
+            {
+                using var csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read);
+                using var srDecrypt = new StreamReader(csDecrypt);
+
+                // Read the decrypted bytes from the decrypting stream
+                // and place them in a string.
+                plaintext = srDecrypt.ReadToEnd();
+            }
+
+            return plaintext;
+        }
+
+        private static byte[] PerformCryptography(byte[] data, ICryptoTransform cryptoTransform)
+        {
+            using var ms = new MemoryStream();
+            using var cryptoStream = new CryptoStream(ms, cryptoTransform, CryptoStreamMode.Write);
+            cryptoStream.Write(data, 0, data.Length);
+            cryptoStream.FlushFinalBlock();
+
+            return ms.ToArray();
         }
         #endregion
 
@@ -479,7 +631,7 @@ namespace RuriLib.Functions.Crypto
                 JwtAlgorithmName.HS256 => new HMACSHA256Algorithm(),
                 JwtAlgorithmName.HS384 => new HMACSHA384Algorithm(),
                 JwtAlgorithmName.HS512 => new HMACSHA512Algorithm(),
-                _ => throw new NotSupportedException("This algorith is not supported at the moment")
+                _ => throw new NotSupportedException("This algorithm is not supported at the moment")
             };
 
             var jsonSerializer = new JsonNetSerializer();
@@ -487,6 +639,49 @@ namespace RuriLib.Functions.Crypto
             var jwtEncoder = new JwtEncoder(algorithm, jsonSerializer, urlEncoder);
 
             return jwtEncoder.Encode(extraHeaders, payload, secret);
+        }
+        #endregion
+
+        #region Bcrypt
+        /// <summary>
+        /// Hashes an <paramref name="input"/> with BCrypt using the provided <paramref name="salt"/>.
+        /// </summary>
+        public static string BCryptWithSalt(string input, string salt = "")
+            => BCrypt.Net.BCrypt.HashPassword(input, salt);
+
+        /// <summary>
+        /// Hashes an <paramref name="input"/> with BCrypt after generating the salt with the given number of
+        /// <paramref name="rounds"/> and <paramref name="saltRevision"/>.
+        /// </summary>
+        public static string BCryptGenSalt(string input, int rounds = 10, SaltRevision saltRevision = SaltRevision.Revision2X)
+            => BCrypt.Net.BCrypt.HashPassword(input, rounds, saltRevision);
+
+        /// <summary>
+        /// Verifies that a BCrypt <paramref name="hash"/> is valid with respect to a given <paramref name="input"/>.
+        /// </summary>
+        public static bool BCryptVerify(string input, string hash)
+            => BCrypt.Net.BCrypt.Verify(input, hash);
+        #endregion
+
+        #region AWS4
+        /// <summary>
+        /// Generates a SHA-256 hash that is the AWS4 Signature.
+        /// </summary>
+        /// <param name="key">The secret key</param>
+        /// <param name="date">The date stamp</param>
+        /// <param name="region">The name of the AWS instance region</param>
+        /// <param name="service">The name of the AWS instance service</param>
+        /// <returns>The AWS4 signature</returns>
+        public static byte[] AWS4Encrypt(string key, string date, string region, string service)
+        {
+            var keyChars = $"AWS4{key}".ToCharArray();
+            
+            var secret = Encoding.UTF8.GetBytes(keyChars);
+            var dateKey = Hmac(date, secret);
+            var regionKey = Hmac(region, dateKey);
+            var serviceKey = Hmac(service, regionKey);
+
+            return Hmac("aws4_request", serviceKey);
         }
         #endregion
     }

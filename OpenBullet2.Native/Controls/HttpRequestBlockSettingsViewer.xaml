@@ -44,6 +44,10 @@
                 Text="{Binding Label}"
                 DockPanel.Dock="Left" />
         </DockPanel>
+        <CheckBox
+            Margin="5"
+            Content="Safe mode (catch exceptions to data.ERROR)"
+            IsChecked="{Binding SafeMode}" />
         <Label 
             Content="Settings:"
             Margin="0 5"
@@ -158,6 +162,7 @@
         <local:IntSettingViewer x:Name="maxNumberOfRedirectsSetting" />
         <local:BoolSettingViewer x:Name="absoluteUriInFirstLineSetting" />
         <local:BoolSettingViewer x:Name="readResponseContentSetting" />
+        <local:BoolSettingViewer x:Name="decodeHtmlSetting" />
         <local:StringSettingViewer x:Name="codePagesEncodingSetting" />
 
         <Label 
@@ -165,6 +170,7 @@
             Margin="0 5"
             Foreground="{DynamicResource ForegroundCustom}" />
 
+        <local:EnumSettingViewer x:Name="httpLibrarySetting" />
         <local:EnumSettingViewer x:Name="securityProtocolSetting" />
         <local:BoolSettingViewer x:Name="useCustomCipherSuitesSetting" />
         <local:ListOfStringsSettingViewer x:Name="customCipherSuitesSetting" />

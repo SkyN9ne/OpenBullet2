@@ -27,6 +27,7 @@ namespace OpenBullet2.Native.ViewModels
         private ConfigDebugger debugger;
 
         public event EventHandler<BotLoggerEntry> NewLogEntry;
+        public event EventHandler LogCleared;
 
         private string testData = string.Empty;
         public string TestData
@@ -96,23 +97,37 @@ namespace OpenBullet2.Native.ViewModels
             }
         }
 
-        public IEnumerable<ProxyType> ProxyTypes => Enum.GetValues(typeof(ProxyType)).Cast<ProxyType>();
-
-        private bool isRunning;
-        public bool IsRunning
+        private bool stepByStep;
+        public bool StepByStep
         {
-            get => isRunning;
+            get => stepByStep;
             set
             {
-                isRunning = value;
+                stepByStep = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public IEnumerable<ProxyType> ProxyTypes => Enum.GetValues(typeof(ProxyType)).Cast<ProxyType>();
+
+        private ConfigDebuggerStatus status;
+        public ConfigDebuggerStatus Status
+        {
+            get => status;
+            set
+            {
+                status = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanStart));
+                OnPropertyChanged(nameof(CanTakeStep));
                 OnPropertyChanged(nameof(CanStop));
             }
         }
 
-        public bool CanStart => !IsRunning;
-        public bool CanStop => IsRunning;
+        public bool CanStart => status is ConfigDebuggerStatus.Idle;
+        public bool CanTakeStep => status is ConfigDebuggerStatus.WaitingForStep;
+        public bool CanStop => status is ConfigDebuggerStatus.Running or ConfigDebuggerStatus.WaitingForStep;
+
         public List<Variable> Variables => obSettingsService.Settings.GeneralSettings.GroupCapturesInDebugger
             ? options.Variables.OrderBy(v => v.MarkedForCapture).ToList()
             : options.Variables;
@@ -179,7 +194,8 @@ namespace OpenBullet2.Native.ViewModels
                 WordlistType = WordlistType,
                 PersistLog = PersistLog,
                 ProxyType = ProxyType,
-                UseProxy = UseProxy
+                UseProxy = UseProxy,
+                StepByStep = StepByStep
             };
 
             debugger = new ConfigDebugger(configService.SelectedConfig, options, logger)
@@ -190,9 +206,8 @@ namespace OpenBullet2.Native.ViewModels
                 RuriLibSettings = rlSettingsService
             };
 
-            debugger.Started += (s, e) => IsRunning = true;
-            debugger.Stopped += (s, e) => IsRunning = false;
-            debugger.NewLogEntry += (s, e) => NewLogEntry?.Invoke(this, e);
+            debugger.StatusChanged += OnStatusChanged;
+            debugger.NewLogEntry += OnNewLogEntry;
 
             try
             {
@@ -200,14 +215,24 @@ namespace OpenBullet2.Native.ViewModels
             }
             finally
             {
-                IsRunning = false;
+                Status = ConfigDebuggerStatus.Idle;
 
-                debugger.Started -= (s, e) => IsRunning = true;
-                debugger.Stopped -= (s, e) => IsRunning = false;
-                debugger.NewLogEntry -= (s, e) => NewLogEntry?.Invoke(this, e);
+                debugger.StatusChanged -= OnStatusChanged;
+                debugger.NewLogEntry -= OnNewLogEntry;
             }
         }
 
+        public void TakeStep() => debugger?.TryTakeStep();
+
         public void Stop() => debugger?.Stop();
+
+        public void ClearLog()
+        {
+            logger?.Clear();
+            LogCleared?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void OnStatusChanged(object sender, ConfigDebuggerStatus status) => Status = status;
+        private void OnNewLogEntry(object sender, BotLoggerEntry e) => NewLogEntry?.Invoke(this, e);
     }
 }

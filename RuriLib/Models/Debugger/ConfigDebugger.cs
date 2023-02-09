@@ -3,6 +3,7 @@ using IronPython.Hosting;
 using IronPython.Runtime;
 using PuppeteerSharp;
 using RuriLib.Exceptions;
+using RuriLib.Helpers;
 using RuriLib.Helpers.Blocks;
 using RuriLib.Helpers.CSharp;
 using RuriLib.Helpers.Transpilers;
@@ -30,6 +31,13 @@ using System.Threading.Tasks;
 
 namespace RuriLib.Models.Debugger
 {
+    public enum ConfigDebuggerStatus
+    {
+        Idle,
+        Running,
+        WaitingForStep
+    }
+
     public class ConfigDebugger
     {
         public IRandomUAProvider RandomUAProvider { get; set; }
@@ -37,15 +45,16 @@ namespace RuriLib.Models.Debugger
         public RuriLibSettingsService RuriLibSettings { get; set; }
         public PluginRepository PluginRepo { get; set; }
 
-        public bool IsRunning { get; private set; }
+        public ConfigDebuggerStatus Status { get; private set; }
 
-        public event EventHandler Started;
+        public event EventHandler<ConfigDebuggerStatus> StatusChanged;
         public event EventHandler<BotLoggerEntry> NewLogEntry;
-        public event EventHandler Stopped;
 
         private readonly Config config;
         private readonly DebuggerOptions options;
         private readonly BotLogger logger;
+        private BotData data;
+        private Stepper stepper;
         private CancellationTokenSource cts;
         private Browser lastPuppeteerBrowser;
         private OpenQA.Selenium.WebDriver lastSeleniumBrowser;
@@ -64,8 +73,11 @@ namespace RuriLib.Models.Debugger
             if (config.Mode == ConfigMode.Stack || config.Mode == ConfigMode.LoliCode)
             {
                 config.CSharpScript = config.Mode == ConfigMode.Stack
-                    ? Stack2CSharpTranspiler.Transpile(config.Stack, config.Settings)
-                    : Loli2CSharpTranspiler.Transpile(config.LoliCodeScript, config.Settings);
+                    ? Stack2CSharpTranspiler.Transpile(config.Stack, config.Settings, options.StepByStep)
+                    : Loli2CSharpTranspiler.Transpile(config.LoliCodeScript, config.Settings, options.StepByStep);
+
+                // Stacker is not currently available for the startup phase
+                config.StartupCSharpScript = Loli2CSharpTranspiler.Transpile(config.StartupLoliCodeScript, config.Settings, options.StepByStep);
             }
 
             if (options.UseProxy && !options.TestProxy.Contains(':'))
@@ -81,7 +93,7 @@ namespace RuriLib.Models.Debugger
             // Close any previously opened browsers
             if (lastPuppeteerBrowser != null)
             {
-                await lastPuppeteerBrowser.CloseAsync();
+                await lastPuppeteerBrowser.CloseAsync().ConfigureAwait(false);
             }
 
             if (lastSeleniumBrowser != null)
@@ -90,7 +102,7 @@ namespace RuriLib.Models.Debugger
             }
 
             options.Variables.Clear();
-            IsRunning = true;
+            Status = ConfigDebuggerStatus.Running;
             cts = new CancellationTokenSource();
             var sw = new Stopwatch();
 
@@ -108,10 +120,20 @@ namespace RuriLib.Models.Debugger
                 providers.RandomUA = RandomUAProvider;
             }
 
-            // Build the BotData
-            var data = new BotData(providers, config.Settings, logger, dataLine, proxy, options.UseProxy)
+            // Unregister the previous event if there was an existing stepper
+            if (stepper != null)
             {
-                CancellationToken = cts.Token
+                stepper.WaitingForStep -= OnWaitingForStep;
+            }
+
+            stepper = new Stepper();
+            stepper.WaitingForStep += OnWaitingForStep;
+
+            // Build the BotData
+            data = new BotData(providers, config.Settings, logger, dataLine, proxy, options.UseProxy)
+            {
+                CancellationToken = cts.Token,
+                Stepper = stepper
             };
             using var httpClient = new HttpClient();
             data.SetObject("httpClient", httpClient);
@@ -126,6 +148,8 @@ namespace RuriLib.Models.Debugger
 
             var script = new ScriptBuilder()
                 .Build(config.CSharpScript, config.Settings.ScriptSettings, PluginRepo);
+
+            var startupScript = new ScriptBuilder().Build(config.StartupCSharpScript, config.Settings.ScriptSettings, PluginRepo);
 
             logger.Log($"Sliced {dataLine.Data} into:");
             foreach (var slice in dataLine.GetVariables())
@@ -195,11 +219,31 @@ namespace RuriLib.Models.Debugger
             try
             {
                 sw.Start();
-                Started?.Invoke(this, EventArgs.Empty);
+                StatusChanged?.Invoke(this, ConfigDebuggerStatus.Running);
 
                 if (config.Mode != ConfigMode.Legacy)
                 {
-                    var state = await script.RunAsync(scriptGlobals, null, cts.Token);
+                    // If the startup script is not empty, execute it
+                    if (!string.IsNullOrWhiteSpace(config.StartupCSharpScript))
+                    {
+                        // This data is temporary and will not be persisted to the bots, it is
+                        // only used in this context to be able to use variables e.g. data.SOURCE
+                        // and other things like providers, settings, logger.
+                        // By default it doesn't support proxies.
+                        var startupData = new BotData(providers, config.Settings, logger,
+                            new DataLine(string.Empty, wordlistType), null, false)
+                        {
+                            CancellationToken = cts.Token,
+                            Stepper = stepper
+                        };
+
+                        logger.Log("Executing startup script...");
+                        var startupGlobals = new ScriptGlobals(startupData, globals);
+                        await startupScript.RunAsync(startupGlobals, null, cts.Token).ConfigureAwait(false);
+                        logger.Log("Executing main script...");
+                    }
+                    
+                    var state = await script.RunAsync(scriptGlobals, null, cts.Token).ConfigureAwait(false);
 
                     foreach (var scriptVar in state.Variables)
                     {
@@ -234,7 +278,7 @@ namespace RuriLib.Models.Debugger
                             break;
                         }
 
-                        await loliScript.TakeStep(lsGlobals);
+                        await loliScript.TakeStep(lsGlobals).ConfigureAwait(false);
 
                         options.Variables.Clear();
                         var legacyVariables = data.TryGetObject<VariablesList>("legacyVariables");
@@ -258,7 +302,7 @@ namespace RuriLib.Models.Debugger
                     : ex.Message;
 
                 logger.Log($"[{data.ExecutionInfo}] {ex.GetType().Name}: {logErrorMessage}", LogColors.Tomato);
-                IsRunning = false;
+                Status = ConfigDebuggerStatus.Idle;
                 throw;
             }
             finally
@@ -272,7 +316,7 @@ namespace RuriLib.Models.Debugger
                 lastSeleniumBrowser = data.TryGetObject<OpenQA.Selenium.WebDriver>("selenium");
 
                 // Dispose stuff in data.Objects
-                data.DisposeObjectsExcept(new[] { "puppeteer", "puppeteerPage", "puppeteerFrame" });
+                data.DisposeObjectsExcept(new[] { "puppeteer", "puppeteerPage", "puppeteerFrame", "selenium" });
 
                 // Dispose resources
                 foreach (var resource in resources.Where(r => r.Value is IDisposable)
@@ -284,12 +328,32 @@ namespace RuriLib.Models.Debugger
                 data.AsyncLocker.Dispose();
             }
 
-            IsRunning = false;
-            Stopped?.Invoke(this, EventArgs.Empty);
+            Status = ConfigDebuggerStatus.Idle;
+            StatusChanged?.Invoke(this, ConfigDebuggerStatus.Idle);
+        }
+
+        /// <summary>
+        /// Tries to take a step. Returns true if a step was taken.
+        /// </summary>
+        public bool TryTakeStep()
+        {
+            if (stepper == null || !stepper.IsWaiting)
+            {
+                return false;
+            }
+
+            StatusChanged?.Invoke(this, ConfigDebuggerStatus.Running);
+            return stepper.TryTakeStep();
         }
 
         public void Stop() => cts.Cancel();
 
+        // Propagate the events
         private void OnNewEntry(object sender, BotLoggerEntry entry) => NewLogEntry?.Invoke(this, entry);
+        private void OnWaitingForStep(object sender, EventArgs e)
+        {
+            Status = ConfigDebuggerStatus.WaitingForStep;
+            StatusChanged?.Invoke(this, ConfigDebuggerStatus.WaitingForStep);
+        }
     }
 }

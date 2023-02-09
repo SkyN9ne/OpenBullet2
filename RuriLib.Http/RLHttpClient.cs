@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Security.Cryptography.X509Certificates;
 using RuriLib.Proxies;
+using RuriLib.Proxies.Clients;
 using RuriLib.Proxies.Exceptions;
 using System.Collections.Generic;
 using RuriLib.Http.Models;
@@ -113,15 +114,17 @@ namespace RuriLib.Http
 
         /// <summary>
         /// Creates a new instance of <see cref="RLHttpClient"/> given a <paramref name="proxyClient"/>.
+        /// If <paramref name="proxyClient"/> is null, <see cref="NoProxyClient"/> will be used.
         /// </summary>
-        public RLHttpClient(ProxyClient proxyClient)
+        public RLHttpClient(ProxyClient proxyClient = null)
         {
-            this.proxyClient = proxyClient ?? throw new ArgumentNullException(nameof(proxyClient));
+            this.proxyClient = proxyClient ?? new NoProxyClient();
         }
 
         /// <summary>
         /// Asynchronously sends a <paramref name="request"/> and returns an <see cref="HttpResponse"/>.
         /// </summary>
+        /// <param name="request">The request to send</param>
         /// <param name="cancellationToken">A cancellation token to cancel the operation</param>
         public Task<HttpResponse> SendAsync(HttpRequest request, CancellationToken cancellationToken = default)
             => SendAsync(request, 0, cancellationToken);
@@ -273,6 +276,7 @@ namespace RuriLib.Http
             }
         }
 
+        /// <inheritdoc/>
         public void Dispose()
         {
             tcpClient?.Dispose();

@@ -64,13 +64,12 @@ namespace RuriLib.Models.Blocks
             base.FromLC(ref script, ref lineNumber);
 
             using var reader = new StringReader(script);
-            string line, lineCopy;
 
-            while ((line = reader.ReadLine()) != null)
+            while (reader.ReadLine() is { } line)
             {
                 line = line.Trim();
                 lineNumber++;
-                lineCopy = line;
+                var lineCopy = line;
 
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
@@ -181,7 +180,7 @@ namespace RuriLib.Models.Blocks
 
             // Append MethodName(data, param1, "param2", param3);
             var parameters = new List<string> { "data" }
-                .Concat(Settings.Values.Select(s => CSharpWriter.FromSetting(s)));
+                .Concat(Settings.Values.Select(CSharpWriter.FromSetting));
 
             writer.Write($"{Descriptor.Id}({string.Join(", ", parameters)})");
 
@@ -194,8 +193,16 @@ namespace RuriLib.Models.Blocks
                 writer.WriteLine(";");
             }
 
-            if (IsCapture)
-                writer.WriteLine($"data.MarkForCapture(nameof({OutputVariable}));");
+            // If the block has a return type, log which variable was written
+            if (Descriptor.ReturnType.HasValue)
+            {
+                writer.WriteLine($"data.LogVariableAssignment(nameof({OutputVariable}));");
+
+                if (IsCapture)
+                {
+                    writer.WriteLine($"data.MarkForCapture(nameof({OutputVariable}));");
+                }
+            }
         }
 
         // This is needed otherwise when we have blocks made in other plugins they might reference

@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using OpenBullet2.Core.Services;
 using OpenBullet2.Services;
-using RuriLib.Extensions;
+using Radzen;
 using RuriLib.Models.Blocks;
 using RuriLib.Models.Blocks.Custom;
 using RuriLib.Models.Blocks.Settings;
@@ -21,7 +21,8 @@ namespace OpenBullet2.Shared
 
         [Parameter] public BlockSetting BlockSetting { get; set; }
         [Parameter] public bool DisplayName { get; set; } = true;
-        public string Name => BlockSetting.Name.ToReadableName();
+
+        private ElementReference settingNameLabel;
 
         private Task<IEnumerable<string>> GetSuggestions(string partial)
         {
@@ -37,13 +38,22 @@ namespace OpenBullet2.Shared
                 suggestions.Insert(0, $"input.{slice}");
             }
 
-            // TODO: Ideally only show variables in blocks above this one
             var stack = ConfigService.SelectedConfig.Stack;
-            foreach (var variable in stack.Select(b => GetOutputVariables(b)).SelectMany(v => v).Reverse())
+
+            foreach (var block in stack)
             {
-                if (!string.IsNullOrWhiteSpace(variable) && !suggestions.Contains(variable))
+                // If it's the current block, stop here (we don't want to add variables from this or the next blocks)
+                if (block.Settings.Any(s => s.Value == BlockSetting))
                 {
-                    suggestions.Insert(0, variable);
+                    break;
+                }
+
+                foreach (var variable in GetOutputVariables(block).Reverse())
+                {
+                    if (!string.IsNullOrWhiteSpace(variable) && !suggestions.Contains(variable))
+                    {
+                        suggestions.Insert(0, variable);
+                    }
                 }
             }
 

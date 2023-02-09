@@ -19,6 +19,8 @@ namespace RuriLib.Models.Blocks.Custom
     {
         public RequestParams RequestParams { get; set; } = new StandardRequestParams();
 
+        public bool Safe { get; set; } = false;
+
         public HttpRequestBlockInstance(HttpRequestBlockDescriptor descriptor)
             : base(descriptor)
         {
@@ -49,6 +51,11 @@ namespace RuriLib.Models.Blocks.Custom
              */
 
             using var writer = new LoliCodeWriter(base.ToLC(printDefaultParams));
+
+            if (Safe)
+            {
+                writer.AppendLine("SAFE", 2);
+            }
 
             switch (RequestParams)
             {
@@ -141,16 +148,21 @@ namespace RuriLib.Models.Blocks.Custom
             base.FromLC(ref script, ref lineNumber);
 
             using var reader = new StringReader(script);
-            string line, lineCopy;
 
-            while ((line = reader.ReadLine()) != null)
+            while (reader.ReadLine() is { } line)
             {
                 line = line.Trim();
-                lineCopy = line;
+                var lineCopy = line;
                 lineNumber++;
 
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
+
+                if (line.StartsWith("SAFE"))
+                {
+                    Safe = true;
+                    continue;
+                }
 
                 if (line.StartsWith("TYPE:"))
                 {
@@ -299,6 +311,12 @@ namespace RuriLib.Models.Blocks.Custom
         public override string ToCSharp(List<string> definedVariables, ConfigSettings settings)
         {
             using var writer = new StringWriter();
+
+            if (Safe)
+            {
+                writer.WriteLine("try {");
+            }
+
             writer.Write("await ");
 
             switch (RequestParams)
@@ -335,6 +353,7 @@ namespace RuriLib.Models.Blocks.Custom
             writer.Write("MaxNumberOfRedirects = " + GetSettingValue("maxNumberOfRedirects") + ", ");
             writer.Write("ReadResponseContent = " + GetSettingValue("readResponseContent") + ", ");
             writer.Write("AbsoluteUriInFirstLine = " + GetSettingValue("absoluteUriInFirstLine") + ", ");
+            writer.Write("HttpLibrary = " + GetSettingValue("httpLibrary") + ", ");
             writer.Write("SecurityProtocol = " + GetSettingValue("securityProtocol") + ", ");
             writer.Write("CustomCookies = " + GetSettingValue("customCookies") + ", ");
             writer.Write("CustomHeaders = " + GetSettingValue("customHeaders") + ", ");
@@ -342,10 +361,18 @@ namespace RuriLib.Models.Blocks.Custom
             writer.Write("HttpVersion = " + GetSettingValue("httpVersion") + ", ");
             writer.Write("CodePagesEncoding = " + GetSettingValue("codePagesEncoding") + ", ");
             writer.Write("AlwaysSendContent = " + GetSettingValue("alwaysSendContent") + ", ");
+            writer.Write("DecodeHtml = " + GetSettingValue("decodeHtml") + ", ");
             writer.Write("UseCustomCipherSuites = " + GetSettingValue("useCustomCipherSuites") + ", ");
             writer.Write("CustomCipherSuites = " + GetSettingValue("customCipherSuites") + " ");
 
             writer.WriteLine("}).ConfigureAwait(false);");
+
+            if (Safe)
+            {
+                writer.WriteLine("} catch (Exception safeException) {");
+                writer.WriteLine("data.ERROR = safeException.PrettyPrint();");
+                writer.WriteLine("data.Logger.Log($\"[SAFE MODE] Exception caught and saved to data.ERROR: {data.ERROR}\", LogColors.Tomato); }");
+            }
 
             return writer.ToString();
         }
